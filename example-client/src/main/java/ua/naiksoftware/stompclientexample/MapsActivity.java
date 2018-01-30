@@ -1,14 +1,20 @@
 package ua.naiksoftware.stompclientexample;
 
+import android.animation.ValueAnimator;
+import android.content.Intent;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v4.app.FragmentActivity;
 import android.util.Log;
+import android.view.animation.DecelerateInterpolator;
 import android.widget.Toast;
 
+import okhttp3.Response;
 import okio.Utf8;
 import ua.naiksoftware.stomp.Stomp;
 import ua.naiksoftware.stomp.client.StompClient;
+
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
@@ -23,6 +29,13 @@ import com.google.gson.GsonBuilder;
 import org.java_websocket.WebSocket;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
+import org.springframework.web.client.RestTemplate;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -32,26 +45,39 @@ import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.util.Date;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 
 import javax.net.ssl.HttpsURLConnection;
 
 import io.reactivex.FlowableTransformer;
 import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.schedulers.Schedulers;
+
+import static ua.naiksoftware.stomp.LifecycleEvent.Type.OPENED;
+import static ua.naiksoftware.stompclientexample.RestClient.ANDROID_EMULATOR_LOCALHOST;
 //import static com.example.stompwebsocket.RestClient.ANDROID_EMULATOR_LOCALHOST;
 
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback {
 
-    private GoogleMap mMap;
+    private String AccessToken="";
 
-    private LatLng next;
+    long t1;
+    long t2;
     private static final String TAG = "MapsActivity";
 
+    private GoogleMap mMap;
+
+    private LatLng prev;
     private LatLng locate=null;
-    private double prevLocate;
+
     Marker now=null;
     private StompClient mStompClient;
+    private Double lat;
+    private Double lng;
+
     private Gson mGson = new GsonBuilder().create();
 
 
@@ -59,12 +85,14 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
-        final AsyncTask<String, Void, String> execute = new HttpClient().execute();
         try {
             Thread.sleep(1000);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
+        Intent i=getIntent();
+        AccessToken=i.getStringExtra("Access Token");
+
         connectStomp();
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
@@ -74,12 +102,19 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
 
     public void connectStomp() {
-        mStompClient = Stomp.over(WebSocket.class, "ws://192.168.43.198:8080/gs-guide-websocket/websocket");
-        //mStompClient = Stomp.over(WebSocket.class, "ws://" + ANDROID_EMULATOR_LOCALHOST
-        //        + ":" + RestClient.SERVER_PORT + "/gs-guide-websocket/websocket");
+
+        Map<String,String> param= new HashMap<>();
+        param.put("X_Auth_Token","Bearer "+AccessToken);
+        mStompClient = Stomp.over(WebSocket.class, "ws://192.168.0.105:8181/gs-guide-websocket/websocket");
+    //mStompClient = Stomp.over(WebSocket.class, "ws://" + ANDROID_EMULATOR_LOCALHOST
+     //           + ":" + RestClient.SERVER_PORT + "/gs-guide-websocket/websocket",param);
+
+
 
         mStompClient.lifecycle()
                 .subscribeOn(Schedulers.io())
+
+
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(lifecycleEvent ->{
                     switch (lifecycleEvent.getType()) {
@@ -120,19 +155,28 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     }
     private void addItem(EchoModel echoModel,String str) throws JSONException {
         echoModel.setEcho(str);
-        Double lat = echoModel.getLat();
-        Double lng = echoModel.getLng();
+        lat=echoModel.getLat();
+        lng=echoModel.getLng();
 
-        LatLng prev = locate;
+        prev=locate;
         locate = new LatLng(lat, lng);
-        if(now!=null)
+        /*if(now!=null)
         {
             now.remove();
-        }
+        }*/
+
         float rotateDegree=getRotate(prev,locate);
-        now=mMap.addMarker(new MarkerOptions().position(locate).title("Server Location")
-                .icon(BitmapDescriptorFactory.fromResource(R.mipmap.marker)).flat(true)
-                .rotation(rotateDegree));
+        if(prev==null)
+            now=mMap.addMarker(new MarkerOptions().position(locate).title("Server Location")
+                    .icon(BitmapDescriptorFactory.fromResource(R.mipmap.marker)).flat(true)
+                    .rotation(rotateDegree));
+        else
+            animate(prev,locate,rotateDegree);
+        if(prev==null)
+        {
+            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(locate,12));
+            t1=System.currentTimeMillis();
+        }
         //mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(locate,21));
     }
 
@@ -187,100 +231,54 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         // Add a marker in Sydney and move the camera
         LatLng sydney = new LatLng(12.9716, 77);
         //now=mMap.addMarker(new MarkerOptions().position(sydney).title("Sydney Location"));
-        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(sydney,21));
+        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(sydney,12));
     }
-    public class HttpClient extends AsyncTask<String, Void, String> {
 
-        protected void onPreExecute(){}
+    public void animate(LatLng srcLatLng,LatLng destLatLng,float rotDegree)
+    {
+        double[] startValues = new double[]{srcLatLng.latitude, srcLatLng.longitude};
+        double[] endValues = new double[]{destLatLng.latitude, destLatLng.longitude};
 
-        protected String doInBackground(String... arg0) {
-
-            try {
-
-                java.net.URL url = new URL("http://192.168.43.198:8080/login"); // here is your URL path
-
-
-                String user="user";
-                String password="password";
-                String postDataParams=String.format("username=%s&password=%s", URLEncoder.encode(user, "UTF-8"), URLEncoder.encode(password, "UTF-8"));
-                Log.e("params",postDataParams);
-
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setReadTimeout(15000 /* milliseconds */);
-                conn.setConnectTimeout(15000 /* milliseconds */);
-                conn.setRequestMethod("POST");
-                conn.setDoInput(true);
-                conn.setDoOutput(true);
-
-                OutputStream os = conn.getOutputStream();
-                BufferedWriter writer = new BufferedWriter(
-                        new OutputStreamWriter(os, "UTF-8"));
-                writer.write(postDataParams);
-
-                writer.flush();
-                writer.close();
-                os.close();
-
-                int responseCode=conn.getResponseCode();
-
-                if (responseCode == HttpsURLConnection.HTTP_OK) {
-
-                    BufferedReader in=new BufferedReader(new
-                            InputStreamReader(
-                            conn.getInputStream()));
-
-                    StringBuffer sb = new StringBuffer("");
-                    String line="";
-
-                    while((line = in.readLine()) != null) {
-
-                        sb.append(line);
-                        break;
-                    }
-                    Log.i(TAG, "doInBackground: "+sb);
-                    in.close();
-                    return sb.toString();
-
-                }
-                else {
-                    return new String("false : "+responseCode);
-                }
+        ValueAnimator latLngAnimator = ValueAnimator.ofObject(new DoubleArrayEvaluator(), startValues, endValues);
+        t2=System.currentTimeMillis();
+        latLngAnimator.setDuration(t2-t1);
+        t1=t2;
+        latLngAnimator.setInterpolator(new DecelerateInterpolator());
+        latLngAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            @Override
+            public void onAnimationUpdate(ValueAnimator animation) {
+                double[] animatedValue = (double[]) animation.getAnimatedValue();
+                now.setPosition(new LatLng(animatedValue[0], animatedValue[1]));
+                now.setRotation(rotDegree);
             }
-            catch(Exception e){
-                return new String("Exception: " + e.getMessage());
-            }
+        });
+        latLngAnimator.start();
+        mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(locate,12),1000,null);
 
-        }
+    }
+    private class connect extends AsyncTask<Void,Void,Void>
+    {
 
         @Override
-        protected void onPostExecute(String result) {
-            Toast.makeText(getApplicationContext(), result,Toast.LENGTH_LONG).show();
-        }
+        protected Void doInBackground(Void... voids) {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            Log.e("Access Token",AccessToken);
 
+            headers.set("X_Auth_Token", AccessToken);
+            RestTemplate restTemplate = new RestTemplate();
+            MappingJackson2HttpMessageConverter jsonHttpMessageConverter = new MappingJackson2HttpMessageConverter();
+            jsonHttpMessageConverter.getObjectMapper().configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
+            restTemplate.getMessageConverters().add(jsonHttpMessageConverter);
 
-        public String getPostDataString(JSONObject params) throws Exception {
+            HttpEntity<String> entity = new HttpEntity<String>("parameters",headers);
+            ResponseEntity<String> response = restTemplate.exchange("http://192.168.43.198:8181/gs-guide-websocket/websocket", HttpMethod.GET,entity, String.class);
+            //mStompClient = Stomp.over(WebSocket.class, "ws://" + ANDROID_EMULATOR_LOCALHOST
+            //        + ":" + RestClient.SERVER_PORT + "/gs-guide-websocket/websocket");
+            Log.e("Response ",response.getBody());
 
-            StringBuilder result = new StringBuilder();
-            boolean first = true;
-
-            Iterator<String> itr = params.keys();
-
-            while(itr.hasNext()){
-
-                String key= itr.next();
-                Object value = params.get(key);
-
-                if (first)
-                    first = false;
-                else
-                    result.append("&");
-
-                result.append(URLEncoder.encode(key, "UTF-8"));
-                result.append("=");
-                result.append(URLEncoder.encode(value.toString(), "UTF-8"));
-
-            }
-            return result.toString();
+            return null;
         }
     }
+
 }
