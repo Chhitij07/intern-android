@@ -1,11 +1,17 @@
 package ua.naiksoftware.stompclientexample;
 
 import android.animation.ValueAnimator;
+import android.app.ActivityManager;
+import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
+import android.graphics.Color;
 import android.os.AsyncTask;
+import android.os.Build;
 import android.os.Bundle;
 import android.support.v4.app.FragmentActivity;
 import android.util.Log;
+import android.view.View;
 import android.view.animation.DecelerateInterpolator;
 import android.widget.Toast;
 
@@ -23,6 +29,7 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.PolylineOptions;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
@@ -39,15 +46,19 @@ import org.springframework.web.client.RestTemplate;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 import javax.net.ssl.HttpsURLConnection;
@@ -105,7 +116,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         Map<String,String> param= new HashMap<>();
         param.put("X_Auth_Token","Bearer "+AccessToken);
-        mStompClient = Stomp.over(WebSocket.class, "ws://192.168.0.105:8181/gs-guide-websocket/websocket");
+        mStompClient = Stomp.over(WebSocket.class, "ws://192.168.43.198:8080/gs-guide-websocket/websocket");
     //mStompClient = Stomp.over(WebSocket.class, "ws://" + ANDROID_EMULATOR_LOCALHOST
      //           + ":" + RestClient.SERVER_PORT + "/gs-guide-websocket/websocket",param);
 
@@ -153,36 +164,66 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     toast(throwable.getMessage());
                 });
     }
-    private void addItem(EchoModel echoModel,String str) throws JSONException {
-        echoModel.setEcho(str);
-        lat=echoModel.getLat();
-        lng=echoModel.getLng();
+    private void addItem(EchoModel echoModel, String str) throws JSONException {
+        if (!isAppIsInBackground(this)) {
+            echoModel.setEcho(str);
+            lat = echoModel.getLat();
+            lng = echoModel.getLng();
 
-        prev=locate;
-        locate = new LatLng(lat, lng);
+            prev = locate;
+            locate = new LatLng(lat, lng);
         /*if(now!=null)
         {
             now.remove();
         }*/
 
-        float rotateDegree=getRotate(prev,locate);
-        if(prev==null)
-            now=mMap.addMarker(new MarkerOptions().position(locate).title("Server Location")
-                    .icon(BitmapDescriptorFactory.fromResource(R.mipmap.marker)).flat(true)
-                    .rotation(rotateDegree));
-        else
-            animate(prev,locate,rotateDegree);
-        if(prev==null)
-        {
-            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(locate,12));
-            t1=System.currentTimeMillis();
+            float rotateDegree = getRotate(prev, locate);
+            if (prev == null)
+                now = mMap.addMarker(new MarkerOptions().position(locate).title("Server Location")
+                        .icon(BitmapDescriptorFactory.fromResource(R.mipmap.marker)).flat(true)
+                        .rotation(rotateDegree));
+            else {
+                t2 = System.currentTimeMillis();
+
+                animate(locate, (int) (t2 - t1));
+
+
+
+                String url = getDirectionsUrl(prev, locate);
+
+                DownloadTask downloadTask = new DownloadTask();
+
+                // Start downloading json data from Google Directions API
+
+                downloadTask.execute(url);
+
+            }
+
+
+            if (prev == null) {
+                mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(locate, 12));
+                t1 = System.currentTimeMillis();
+            }
+            //mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(locate,21));
         }
-        //mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(locate,21));
+    }
+    private void DrawPolyLine()
+    {
+        PolylineOptions lineOptions=new PolylineOptions();
+        ArrayList points=new ArrayList();
+        points.add(prev);
+        points.add(locate);
+        lineOptions.addAll(points);
+        lineOptions.width(5);
+        lineOptions.color(Color.BLACK);
+        lineOptions.geodesic(true);
+        addLine(lineOptions);
+
     }
 
-    float getRotate(LatLng loc1,LatLng loc2)
-    {
-        if(loc1!=null && loc2!=null) {
+
+    float getRotate(LatLng loc1, LatLng loc2) {
+        if (loc1 != null && loc2 != null) {
             double lat1 = loc1.latitude;
             double lat2 = loc2.latitude;
             double lng1 = loc1.longitude;
@@ -214,7 +255,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     }
 
 
-
     /**
      * Manipulates the map once available.
      * This callback is triggered when the map is ready to be used.
@@ -231,54 +271,224 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         // Add a marker in Sydney and move the camera
         LatLng sydney = new LatLng(12.9716, 77);
         //now=mMap.addMarker(new MarkerOptions().position(sydney).title("Sydney Location"));
-        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(sydney,12));
+        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(sydney, 9));
     }
 
-    public void animate(LatLng srcLatLng,LatLng destLatLng,float rotDegree)
-    {
-        double[] startValues = new double[]{srcLatLng.latitude, srcLatLng.longitude};
-        double[] endValues = new double[]{destLatLng.latitude, destLatLng.longitude};
+    public void addLine(PolylineOptions lineOptions) {
+        mMap.addPolyline(lineOptions);
+    }
 
+    public void recenter(View view) {
+        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(locate, 15));
+    }
+
+    public void animate(LatLng destLatLng, int interval) {
+        LatLng n = now.getPosition();
+        double[] startValues = new double[]{n.latitude, n.longitude};
+        double[] endValues = new double[]{destLatLng.latitude, destLatLng.longitude};
         ValueAnimator latLngAnimator = ValueAnimator.ofObject(new DoubleArrayEvaluator(), startValues, endValues);
-        t2=System.currentTimeMillis();
-        latLngAnimator.setDuration(t2-t1);
-        t1=t2;
+        latLngAnimator.setDuration(10000);
+
         latLngAnimator.setInterpolator(new DecelerateInterpolator());
         latLngAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
             @Override
             public void onAnimationUpdate(ValueAnimator animation) {
                 double[] animatedValue = (double[]) animation.getAnimatedValue();
                 now.setPosition(new LatLng(animatedValue[0], animatedValue[1]));
-                now.setRotation(rotDegree);
+                now.setRotation(getRotate(n, destLatLng));
             }
         });
         latLngAnimator.start();
-        mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(locate,12),1000,null);
+        mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(locate, 12), 1000, null);
 
     }
-    private class connect extends AsyncTask<Void,Void,Void>
-    {
+
+    private boolean isAppIsInBackground(Context context) {
+        boolean isInBackground = true;
+        ActivityManager am = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
+        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.KITKAT_WATCH) {
+            List<ActivityManager.RunningAppProcessInfo> runningProcesses = am.getRunningAppProcesses();
+            for (ActivityManager.RunningAppProcessInfo processInfo : runningProcesses) {
+                if (processInfo.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND) {
+                    for (String activeProcess : processInfo.pkgList) {
+                        if (activeProcess.equals(context.getPackageName())) {
+                            isInBackground = false;
+                        }
+                    }
+                }
+            }
+        } else {
+            List<ActivityManager.RunningTaskInfo> taskInfo = am.getRunningTasks(1);
+            ComponentName componentInfo = taskInfo.get(0).topActivity;
+            if (componentInfo.getPackageName().equals(context.getPackageName())) {
+                isInBackground = false;
+            }
+        }
+
+        return isInBackground;
+    }
+
+    private class DownloadTask extends AsyncTask<String, String, String> {
 
         @Override
-        protected Void doInBackground(Void... voids) {
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            Log.e("Access Token",AccessToken);
+        protected String doInBackground(String... url) {
 
-            headers.set("X_Auth_Token", AccessToken);
-            RestTemplate restTemplate = new RestTemplate();
-            MappingJackson2HttpMessageConverter jsonHttpMessageConverter = new MappingJackson2HttpMessageConverter();
-            jsonHttpMessageConverter.getObjectMapper().configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
-            restTemplate.getMessageConverters().add(jsonHttpMessageConverter);
+            String data = "";
 
-            HttpEntity<String> entity = new HttpEntity<String>("parameters",headers);
-            ResponseEntity<String> response = restTemplate.exchange("http://192.168.43.198:8181/gs-guide-websocket/websocket", HttpMethod.GET,entity, String.class);
-            //mStompClient = Stomp.over(WebSocket.class, "ws://" + ANDROID_EMULATOR_LOCALHOST
-            //        + ":" + RestClient.SERVER_PORT + "/gs-guide-websocket/websocket");
-            Log.e("Response ",response.getBody());
-
-            return null;
+            try {
+                data = downloadUrl(url[0]);
+            } catch (Exception e) {
+                Log.d("Background Task", e.toString());
+            }
+            return data;
         }
+
+        @Override
+        protected void onPostExecute(String result) {
+            super.onPostExecute(result);
+
+            ParserTask parserTask = new ParserTask();
+
+            try{
+                parserTask.execute(result);
+            }catch (Exception e)
+            {
+                Log.e("Exception","Parser Task");
+            }
+
+        }
+    }
+
+
+    private class ParserTask extends AsyncTask<String, Integer, List<List<HashMap<String, String>>>> {
+
+        // Parsing the data in non-ui thread
+        @Override
+        protected List<List<HashMap<String, String>>> doInBackground(String... jsonData) {
+
+            JSONObject jObject;
+            List<List<HashMap<String, String>>> routes = null;
+
+            try {
+                jObject = new JSONObject(jsonData[0]);
+                DirectionsJSONParser parser = new DirectionsJSONParser();
+
+                routes = parser.parse(jObject);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            if(routes==null)
+            {
+                return routes;
+            }
+            Log.e("Routes", routes.size() + String.valueOf(routes));
+            return routes;
+        }
+
+        @Override
+        protected void onPostExecute(List<List<HashMap<String, String>>> result) {
+            if(result==null)
+            {
+                DrawPolyLine();
+                return;
+
+            }
+            ArrayList points = null;
+            PolylineOptions lineOptions = null;
+            MarkerOptions markerOptions = new MarkerOptions();
+
+            t2 = System.currentTimeMillis();
+            for (int i = 0; i < result.size(); i++) {
+                points = new ArrayList();
+                lineOptions = new PolylineOptions();
+
+                List<HashMap<String, String>> path = result.get(i);
+
+                for (int j = 0; j < path.size(); j++) {
+                    HashMap<String, String> point = path.get(j);
+
+                    double lat = Double.parseDouble(point.get("lat"));
+                    double lng = Double.parseDouble(point.get("lng"));
+                    LatLng position = new LatLng(lat, lng);
+                    Log.e("Point", String.valueOf(position));
+
+                    points.add(position);
+                }
+
+
+                lineOptions.addAll(points);
+                lineOptions.width(5);
+                lineOptions.color(Color.BLACK);
+                lineOptions.geodesic(true);
+
+            }
+
+// Drawing polyline in the Google Map for the i-th route
+            if (lineOptions != null)
+                addLine(lineOptions);
+        }
+    }
+
+    private String getDirectionsUrl(LatLng origin, LatLng dest) {
+
+        // Origin of route
+        String str_origin = "origin=" + origin.latitude + "," + origin.longitude;
+
+        // Destination of route
+        String str_dest = "destination=" + dest.latitude + "," + dest.longitude;
+
+        // Sensor enabled
+        String sensor = "sensor=false";
+        String mode = "mode=driving";
+        // Building the parameters to the web service
+        String parameters = str_origin + "&" + str_dest + "&" + sensor + "&" + mode;
+
+        // Output format
+        String output = "json";
+
+        // Building the url to the web service
+        String url = "https://maps.googleapis.com/maps/api/directions/" + output + "?" + parameters;
+
+
+        return url;
+    }
+
+    /**
+     * A method to download json data from url
+     */
+    private String downloadUrl(String strUrl) throws IOException {
+        String data = "";
+        InputStream iStream = null;
+        HttpURLConnection urlConnection = null;
+        try {
+            URL url = new URL(strUrl);
+
+            urlConnection = (HttpURLConnection) url.openConnection();
+
+            urlConnection.connect();
+
+            iStream = urlConnection.getInputStream();
+
+            BufferedReader br = new BufferedReader(new InputStreamReader(iStream));
+
+            StringBuffer sb = new StringBuffer();
+
+            String line = "";
+            while ((line = br.readLine()) != null) {
+                sb.append(line);
+            }
+
+            data = sb.toString();
+
+            br.close();
+
+        } catch (Exception e) {
+            Log.d("Exception", e.toString());
+        } finally {
+            iStream.close();
+            urlConnection.disconnect();
+        }
+        return data;
     }
 
 }
