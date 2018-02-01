@@ -9,6 +9,7 @@ import android.graphics.Color;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
 import android.support.v4.app.FragmentActivity;
 import android.util.Log;
 import android.view.View;
@@ -18,6 +19,7 @@ import android.widget.Toast;
 import okhttp3.Response;
 import okio.Utf8;
 import ua.naiksoftware.stomp.Stomp;
+import ua.naiksoftware.stomp.StompHeader;
 import ua.naiksoftware.stomp.client.StompClient;
 
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -114,9 +116,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     public void connectStomp() {
 
-        Map<String,String> param= new HashMap<>();
-        param.put("X_Auth_Token","Bearer "+AccessToken);
-        mStompClient = Stomp.over(WebSocket.class, "ws://192.168.43.198:8080/gs-guide-websocket/websocket");
+        Map<String,String> header=new HashMap<>();
+        header.put("X_Auth_Token",AccessToken);
+
+        mStompClient = Stomp.over(WebSocket.class, "ws://192.168.43.198:8181/gs-guide-websocket/websocket",header);
     //mStompClient = Stomp.over(WebSocket.class, "ws://" + ANDROID_EMULATOR_LOCALHOST
      //           + ":" + RestClient.SERVER_PORT + "/gs-guide-websocket/websocket",param);
 
@@ -141,15 +144,27 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     }
                 });
 
-        mStompClient.topic("/topic/greetings")
+        List<StompHeader> head=new ArrayList<>();
+        head.add(new StompHeader("X_Auth_Token",AccessToken));
+        /*mStompClient.topic("/gs-guide-websocket/websocket", head)
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
+
                 .subscribe(topicMessage -> {
                     Log.d(TAG, "Received " + topicMessage.getPayload());
 
                     addItem(mGson.fromJson(topicMessage.getPayload(), EchoModel.class),topicMessage.getPayload());
                 });
+*/
+        mStompClient.topic("/topic/greetings")
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
 
+                .subscribe(topicMessage -> {
+                    Log.d(TAG, "Received " + topicMessage.getPayload());
+
+                    addItem(mGson.fromJson(topicMessage.getPayload(), EchoModel.class),topicMessage.getPayload());
+                });
         sendEchoViaStomp();
         mStompClient.connect();
     }
