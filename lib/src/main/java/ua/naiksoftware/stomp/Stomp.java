@@ -2,6 +2,7 @@ package ua.naiksoftware.stomp;
 
 import org.java_websocket.WebSocket;
 
+import java.util.List;
 import java.util.Map;
 
 import okhttp3.OkHttpClient;
@@ -19,7 +20,7 @@ import ua.naiksoftware.stomp.client.StompClient;
  */
 public class Stomp {
 
-    public static StompClient over(Class clazz, String uri) {
+    public static StompClient over(Class clazz, String uri, List<StompHeader> header) {
         return over(clazz, uri, null, null);
     }
 

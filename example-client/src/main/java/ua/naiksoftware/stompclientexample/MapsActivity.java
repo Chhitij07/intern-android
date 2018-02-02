@@ -116,10 +116,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     public void connectStomp() {
 
-        Map<String,String> header=new HashMap<>();
-        header.put("X_Auth_Token",AccessToken);
+        List<StompHeader> header=new ArrayList<>();
+        header.add(new StompHeader("X-AUTH-TOKEN",AccessToken));
 
-        mStompClient = Stomp.over(WebSocket.class, "ws://192.168.43.198:8181/gs-guide-websocket/websocket",header);
+        mStompClient = Stomp.over(WebSocket.class, "ws://192.168.43.198:8181" +
+                "/gs-guide-websocket/websocket",header);
     //mStompClient = Stomp.over(WebSocket.class, "ws://" + ANDROID_EMULATOR_LOCALHOST
      //           + ":" + RestClient.SERVER_PORT + "/gs-guide-websocket/websocket",param);
 
@@ -144,9 +145,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     }
                 });
 
+
         List<StompHeader> head=new ArrayList<>();
-        head.add(new StompHeader("X_Auth_Token",AccessToken));
-        /*mStompClient.topic("/gs-guide-websocket/websocket", head)
+        head.add(new StompHeader("X-AUTH-TOKEN",AccessToken));
+        mStompClient.topic("/topic/greetings", head)
+
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
 
@@ -155,22 +158,15 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
                     addItem(mGson.fromJson(topicMessage.getPayload(), EchoModel.class),topicMessage.getPayload());
                 });
-*/
-        mStompClient.topic("/topic/greetings")
-                .subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
 
-                .subscribe(topicMessage -> {
-                    Log.d(TAG, "Received " + topicMessage.getPayload());
 
-                    addItem(mGson.fromJson(topicMessage.getPayload(), EchoModel.class),topicMessage.getPayload());
-                });
         sendEchoViaStomp();
         mStompClient.connect();
+
     }
     public void sendEchoViaStomp() {
         String data="{\"name\": \"John\"}";
-        mStompClient.send("/app/hello", data )
+        mStompClient.send("/app/hello", data)
                 .compose(applySchedulers())
                 .subscribe(aVoid -> {
                     Log.w(TAG, "STOMP echo send successfully");
@@ -201,7 +197,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 t2 = System.currentTimeMillis();
 
                 animate(locate, (int) (t2 - t1));
-
+                //mMap.addMarker(new MarkerOptions().position(prev).icon(BitmapDescriptorFactory.fromResource(R.mipmap.spots)).flat(true)
+                //.rotation(rotateDegree));
 
 
                 String url = getDirectionsUrl(prev, locate);
@@ -286,7 +283,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         // Add a marker in Sydney and move the camera
         LatLng sydney = new LatLng(12.9716, 77);
         //now=mMap.addMarker(new MarkerOptions().position(sydney).title("Sydney Location"));
-        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(sydney, 9));
+        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(sydney, 6));
     }
 
     public void addLine(PolylineOptions lineOptions) {
