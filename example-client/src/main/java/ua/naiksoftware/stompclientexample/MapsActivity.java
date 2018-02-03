@@ -90,7 +90,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private StompClient mStompClient;
     private Double lat;
     private Double lng;
-
+    private String vehicle;
     private Gson mGson = new GsonBuilder().create();
 
 
@@ -105,7 +105,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
         Intent i=getIntent();
         AccessToken=i.getStringExtra("Access Token");
-
+        vehicle=i.getStringExtra("vehicle").toLowerCase();
         connectStomp();
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
@@ -148,7 +148,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         List<StompHeader> head=new ArrayList<>();
         head.add(new StompHeader("X-AUTH-TOKEN",AccessToken));
-        mStompClient.topic("/topic/greetings", head)
+        mStompClient.topic("/topic/"+vehicle, head)
 
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())

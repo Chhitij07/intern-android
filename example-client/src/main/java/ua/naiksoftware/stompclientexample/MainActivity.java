@@ -7,6 +7,7 @@ import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.View;
+import android.widget.EditText;
 
 import com.fasterxml.jackson.databind.SerializationFeature;
 
@@ -27,7 +28,9 @@ import java.util.Map;
 public class MainActivity extends AppCompatActivity {
 
 
-
+    public String username;
+    public String password;
+    public String vehicle;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -35,68 +38,78 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
 
-
     }
 
     public void login(View view) {
+
+        EditText editText = findViewById(R.id.user);
+        username = editText.getText().toString();
+        EditText editText1 = findViewById(R.id.password);
+        password = editText1.getText().toString();
+        EditText editText2 = findViewById(R.id.vehicle);
+        vehicle = editText2.getText().toString();
         new LoginTask(this).execute();
     }
-}
 
-class LoginTask extends AsyncTask<Void, String, String> {
 
-    private String accessToken=null;
-    private Context context;
-    public LoginTask(Context context){
-        this.context=context;
-    }
-    @Override
-    protected String doInBackground(Void... params) {
+    class LoginTask extends AsyncTask<Void, String, String> {
 
-        try {
-            String loginResponse = "Login successful. Redirecting to Home screen...";
+        private String accessToken = null;
+        private Context context;
 
-            JSONObject jsonObject = new JSONObject();
-            jsonObject.put("username", "user");
-            jsonObject.put("password","password");
-            User user = new User();
-            user.setUsername("user");
-            user.setPassword("password");
-            HttpHeaders requestHeaders = new HttpHeaders();
-            requestHeaders.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
-            RestTemplate restTemplate = new RestTemplate();
-            MappingJackson2HttpMessageConverter jsonHttpMessageConverter = new MappingJackson2HttpMessageConverter();
-            jsonHttpMessageConverter.getObjectMapper().configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
-            restTemplate.getMessageConverters().add(jsonHttpMessageConverter);
-            //restTemplate.getMessageConverters().add(new MappingJacksonHttpMessageConverter());
-            //String details = "{\"username\":\"\",\"password\":\"password\"}";
-            HttpEntity<User> httpEntity = new HttpEntity<>(user, requestHeaders);
-            String URL = "http://192.168.43.198:8181/auth/login";
-            Log.e("Details", String.valueOf(httpEntity));
-            ResponseEntity<AccessToken> response = restTemplate.exchange(URL, HttpMethod.POST, httpEntity, AccessToken.class);
 
-            Log.e("Main Activity Response ", String.valueOf(response));
-            if (response.getStatusCode() == HttpStatus.OK || response.getBody().getAccess_token() != null) {
-                Log.e("Access Token",response.getBody().getAccess_token());
-                accessToken=response.getBody().getAccess_token();
-                //AppPreferences.singleton.getSharedPreferences().edit().putString(X_AUTH_TOKEN, response.getBody().getAccess_token()).commit();
+        public LoginTask(Context context) {
+            this.context = context;
+        }
+
+        @Override
+        protected String doInBackground(Void... params) {
+
+            try {
+                String loginResponse = "Login successful. Redirecting to Home screen...";
+
+                JSONObject jsonObject = new JSONObject();
+                jsonObject.put("username", "user");
+                jsonObject.put("password", "password");
+
+                User user = new User();
+                user.setUsername(username);
+                user.setPassword(password);
+                HttpHeaders requestHeaders = new HttpHeaders();
+                requestHeaders.setAccept(Collections.singletonList(MediaType.APPLICATION_JSON));
+                RestTemplate restTemplate = new RestTemplate();
+                MappingJackson2HttpMessageConverter jsonHttpMessageConverter = new MappingJackson2HttpMessageConverter();
+                jsonHttpMessageConverter.getObjectMapper().configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
+                restTemplate.getMessageConverters().add(jsonHttpMessageConverter);
+                //restTemplate.getMessageConverters().add(new MappingJacksonHttpMessageConverter());
+                //String details = "{\"username\":\"\",\"password\":\"password\"}";
+                HttpEntity<User> httpEntity = new HttpEntity<>(user, requestHeaders);
+                String URL = "http://192.168.43.198:8181/auth/login";
+                Log.e("Details", String.valueOf(httpEntity));
+                ResponseEntity<AccessToken> response = restTemplate.exchange(URL, HttpMethod.POST, httpEntity, AccessToken.class);
+
+                Log.e("Main Activity Response ", String.valueOf(response));
+                if (response.getStatusCode() == HttpStatus.OK || response.getBody().getAccess_token() != null) {
+                    Log.e("Access Token", response.getBody().getAccess_token());
+                    accessToken = response.getBody().getAccess_token();
+                    //AppPreferences.singleton.getSharedPreferences().edit().putString(X_AUTH_TOKEN, response.getBody().getAccess_token()).commit();
+                }
+
+            } catch (Exception e) {
+                e.printStackTrace();
             }
 
-        }
-        catch(Exception e)
-        {
-            e.printStackTrace();
+            return accessToken;
         }
 
-        return accessToken;
-    }
-
-    @Override
-    protected void onPostExecute(String s) {
-        Intent intent=new Intent();
-        intent.setClass(context, MapsActivity.class);
-        intent.putExtra("Access Token",accessToken);
-        context.startActivity(intent);
+        @Override
+        protected void onPostExecute(String s) {
+            Intent intent = new Intent();
+            intent.setClass(context, MapsActivity.class);
+            intent.putExtra("Access Token", accessToken);
+            intent.putExtra("vehicle", vehicle);
+            context.startActivity(intent);
+        }
     }
 }
 
