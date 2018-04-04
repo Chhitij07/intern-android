@@ -106,6 +106,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         Intent i=getIntent();
         AccessToken=i.getStringExtra("Access Token");
         vehicle=i.getStringExtra("vehicle").toLowerCase();
+
         connectStomp();
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
@@ -119,8 +120,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         List<StompHeader> header=new ArrayList<>();
         header.add(new StompHeader("X-AUTH-TOKEN",AccessToken));
 
-        mStompClient = Stomp.over(WebSocket.class, "ws://192.168.43.198:8181" +
-                "/gs-guide-websocket/websocket",header);
+        mStompClient = Stomp.over(WebSocket.class, "ws://192.168.0.109:8082" +
+        //        "/gs-guide-websocket/websocket",header);
+                  "/ws/websocket",header);
     //mStompClient = Stomp.over(WebSocket.class, "ws://" + ANDROID_EMULATOR_LOCALHOST
      //           + ":" + RestClient.SERVER_PORT + "/gs-guide-websocket/websocket",param);
 
@@ -146,9 +148,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 });
 
 
-        List<StompHeader> head=new ArrayList<>();
-        head.add(new StompHeader("X-AUTH-TOKEN",AccessToken));
-        mStompClient.topic("/topic/"+vehicle, head)
+        mStompClient.connect(header);
+
+        sendEchoViaStomp();
+        mStompClient.topic("/topic/location/", header)
 
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
@@ -160,13 +163,12 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 });
 
 
-        sendEchoViaStomp();
-        mStompClient.connect();
+
 
     }
     public void sendEchoViaStomp() {
         String data="{\"name\": \"John\"}";
-        mStompClient.send("/app/hello", data)
+        mStompClient.send("/app/location/subscribe", data)
                 .compose(applySchedulers())
                 .subscribe(aVoid -> {
                     Log.w(TAG, "STOMP echo send successfully");

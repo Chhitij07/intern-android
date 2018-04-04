@@ -10,7 +10,6 @@ import org.json.JSONObject;
 public class EchoModel {
 
     private String echo;
-
     public EchoModel() {
     }
 
@@ -23,18 +22,18 @@ public class EchoModel {
 
     public void setEcho(String echo) throws JSONException {
 
-        JSONObject jObj = new JSONObject(echo);
-        this.echo= jObj.getString("content");
+        //JSONObject jObj = new JSONObject(echo);
+        //this.lat= jObj.getString("latitude");
         this.echo = echo;
     }
     public Double getLat() throws JSONException {
         JSONObject jObj = new JSONObject(echo);
-        double lat = jObj.getDouble("Lat");
+        double lat = jObj.getDouble("latitude");
         return lat;
     }
     public Double getLng() throws JSONException {
         JSONObject jObj = new JSONObject(echo);
-        double lng = jObj.getDouble("Lng");
+        double lng = jObj.getDouble("longitude");
         return lng;
     }
 }
