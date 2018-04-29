@@ -120,9 +120,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         List<StompHeader> header=new ArrayList<>();
         header.add(new StompHeader("X-AUTH-TOKEN",AccessToken));
 
-        mStompClient = Stomp.over(WebSocket.class, "ws://192.168.0.109:8082" +
-        //        "/gs-guide-websocket/websocket",header);
-                  "/ws/websocket",header);
+        mStompClient = Stomp.over(WebSocket.class, "ws://192.168.0.100:8181" +
+                "/gs-guide-websocket/websocket",header);
+        //          "/ws/websocket",header);
     //mStompClient = Stomp.over(WebSocket.class, "ws://" + ANDROID_EMULATOR_LOCALHOST
      //           + ":" + RestClient.SERVER_PORT + "/gs-guide-websocket/websocket",param);
 
@@ -151,7 +151,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mStompClient.connect(header);
 
         sendEchoViaStomp();
-        mStompClient.topic("/topic/location/", header)
+        mStompClient.topic("/user/queue/location/", header)
 
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
@@ -167,8 +167,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     }
     public void sendEchoViaStomp() {
+        List<StompHeader> header=new ArrayList<>();
+        header.add(new StompHeader("X-AUTH-TOKEN",AccessToken));
+
         String data="{\"name\": \"John\"}";
-        mStompClient.send("/app/location/subscribe", data)
+//        mStompClient.send("/app/location/subscribe", data)
+        mStompClient.send("/app/hello", data,header)
+
                 .compose(applySchedulers())
                 .subscribe(aVoid -> {
                     Log.w(TAG, "STOMP echo send successfully");

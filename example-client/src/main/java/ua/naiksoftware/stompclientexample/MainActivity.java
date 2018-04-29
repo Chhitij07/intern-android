@@ -84,7 +84,7 @@ public class MainActivity extends AppCompatActivity {
                 //restTemplate.getMessageConverters().add(new MappingJacksonHttpMessageConverter());
                 //String details = "{\"username\":\"\",\"password\":\"password\"}";
                 HttpEntity<User> httpEntity = new HttpEntity<>(user, requestHeaders);
-                String URL = "http://192.168.0.109:8082/auth/login";
+                String URL = "http://192.168.0.100:8181/auth/login";
                 Log.e("Details", String.valueOf(httpEntity));
                 ResponseEntity<AccessToken> response = restTemplate.exchange(URL, HttpMethod.POST, httpEntity, AccessToken.class);
 

@@ -120,6 +120,14 @@ public class StompClient {
                 null));
     }
 
+    public Flowable<Void> send(String destination, String data, List<StompHeader> headers) {
+        headers.add(new StompHeader(StompHeader.DESTINATION,destination));
+        return send(new StompMessage(
+                StompCommand.SEND,
+                headers,
+                data));
+    }
+
     public Flowable<Void> send(String destination, String data) {
         return send(new StompMessage(
                 StompCommand.SEND,

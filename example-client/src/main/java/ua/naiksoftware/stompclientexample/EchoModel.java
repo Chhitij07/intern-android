@@ -28,12 +28,12 @@ public class EchoModel {
     }
     public Double getLat() throws JSONException {
         JSONObject jObj = new JSONObject(echo);
-        double lat = jObj.getDouble("latitude");
+        double lat = jObj.getDouble("Lat");
         return lat;
     }
     public Double getLng() throws JSONException {
         JSONObject jObj = new JSONObject(echo);
-        double lng = jObj.getDouble("longitude");
+        double lng = jObj.getDouble("Lng");
         return lng;
     }
 }
